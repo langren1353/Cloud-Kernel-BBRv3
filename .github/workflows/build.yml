@@ -92,7 +92,7 @@ jobs:
             bison bc flex rsync debhelper lz4 pahole zstd dpkg-dev fakeroot kmod cpio xz-utils
 
       - name: Checkout Workflow Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
         with:
           fetch-tags: true
       - name: Download Linux Kernel Source
@@ -115,12 +115,12 @@ jobs:
           git clone --depth=1 https://gitlab.com/xanmod/linux-patches.git linux-xanmod-patches
           echo "✅ Downloaded Xanmod Patches"
       # - name: Checkout ECHO-CPU-Scheduler
-      #   uses: actions/checkout@v4
+      #   uses: actions/checkout@main
       #   with:
       #     repository: hamadmarri/ECHO-CPU-Scheduler
       #     path: echo-patches
       - name: Checkout Bore-Scheduler Patches
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
         with:
           repository: firelzrd/bore-scheduler
           path: bore-patches
