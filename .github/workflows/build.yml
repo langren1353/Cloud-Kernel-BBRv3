@@ -173,6 +173,11 @@ jobs:
           echo "⭕ Copied Pre-Configured .config from x86_64"
           make CC="ccache gcc" HOSTCC="ccache gcc" olddefconfig
           echo "✅ Final Kernel Build Configured for x86_64"
+          mkdir /workdir/upload 
+          cp *.deb /workdir/upload
+          echo "action_echo=enabled" >> $GITHUB_ENV
+          echo "compile.status=success" >> $GITHUB_ENV
+          echo "FILE_DATE=Kernel_Debian_$kernel_ver_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
       - name: Build Kernel (Debian Package)
         env:
           KBUILD_BUILD_USER: "cloudpassenger"
@@ -203,63 +208,31 @@ jobs:
           echo "BUILD_TIME=$BUILD_TIMESTAMP"
           echo "🏷️ Build Time: $BUILD_TIMESTAMP"
   
-  create-release:
-    name: Create Release
-    needs: [prepare, build]
-    runs-on: ubuntu-latest
-    container: qctt/kernelbuild:debian12
-    steps:
-      - name: Download Artifacts for x86_64
-        uses: actions/download-artifact@v3
-        with:
-          name: kernel-x86_64
-          path: ./
-      - name: Remove Debug Package in Release
+      - name: Generate release tag
+        id: tag
+        if: ${{ env.UPLOAD_RELEASE }} == 'true' && ${{ env.compile }} = == 'success' && !cancelled()
         run: |
-          rm -f linux-image-*-dbg_*.deb
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
+          kernel_ver=$(curl -s https://www.kernel.org/ | grep ' <a href="https://cdn.kernel.org/pub/linux/kernel/' | head -n 1 | awk -F '[>]' '{print $2}' | awk -F '[<]' '{print $1}')
+          echo "action_echo=enabled" >> $GITHUB_ENV
+          echo "release_tag=Debian_Kernel_${kernel_ver}_latest_bbr_$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_ENV
+          touch release.txt
+          echo "tag.status=success" >> $GITHUB_ENV
+
+      - name: Upload Kernel to release
+        uses: softprops/action-gh-release@v1
+        if: ${{ env.tag.status }} == 'success' && !cancelled()
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
         with:
-          tag_name: ${{ needs.prepare.outputs.kernel_version }}
-          name: Debian Cloud Kernel ${{ needs.prepare.outputs.kernel_version }} with BBR3 (amd64)
-          body: |
-            🚀 **Kernel Version:** `${{ needs.prepare.outputs.kernel_version }}`
+          tag_name: ${{ env.release_tag }}
+          body_path: release.txt
+          files: /workdir/upload/*
 
-            📅 **Build Time:** `${{ needs.build.outputs.build_time }}`
-
-            🛠️ **Build Information:**
-            - **Architecture:** `amd64`
-            - **Kernel Type:** `cloud`
-            - **Applied Patches:**
-              - `Debian Patches Collection` (from [kernel-team/linux](https://salsa.debian.org/kernel-team/linux/))
-              - `BBR V3` (from [xanmod/linux-patches](https://gitlab.com/xanmod/linux-patches))
-              - `BBRPlus` (modified from [UJX6N/bbrplus-6.x_stable](https://github.com/UJX6N/bbrplus-6.x_stable))
-              - `TCP Brutal` (from [apernet/tcp-brutal](https://github.com/apernet/tcp-brutal))
-              - `Bore-Scheduler` (from [firelzrd/bore-scheduler](https://github.com/firelzrd/bore-scheduler))
-              - ⚠️ Temporarily disabled `ECHO-CPU-Scheduler` (from [hamadmarri/ECHO-CPU-Scheduler](https://github.com/hamadmarri/ECHO-CPU-Scheduler))
-            
-            --------
-            
-            🚀 **内核版本:** `${{ needs.prepare.outputs.kernel_version }}`
-
-            📅 **构建时间:** `${{ needs.build.outputs.build_time }}`
-
-            🛠️ **构建信息:**
-            - **架构:** `amd64`
-            - **内核类型:** `cloud`
-            - **应用补丁:**
-              - `Debian 补丁集合` (来自 [kernel-team/linux](https://salsa.debian.org/kernel-team/linux/))
-              - `BBR V3` (来自 [xanmod/linux-patches](https://gitlab.com/xanmod/linux-patches))
-              - `BBRPlus` (修改自 [UJX6N/bbrplus-6.x_stable](https://github.com/UJX6N/bbrplus-6.x_stable))
-              - `TCP Brutal` (来自 [apernet/tcp-brutal](https://github.com/apernet/tcp-brutal))
-              - `Bore-Scheduler` (来自 [firelzrd/bore-scheduler](https://github.com/firelzrd/bore-scheduler))
-              - ⚠️ 暂时禁用 `ECHO-CPU-Scheduler` (来自 [hamadmarri/ECHO-CPU-Scheduler](https://github.com/hamadmarri/ECHO-CPU-Scheduler))
-          files: |
-            *.deb
-            *.changes
-            *.buildinfo
-            *.config
-        
+      - name: Delete workflow runs
+        uses: GitRML/delete-workflow-runs@main
+        with:
+          token: ${{ secrets.TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 1
+          keep_minimum_runs: 2
 
