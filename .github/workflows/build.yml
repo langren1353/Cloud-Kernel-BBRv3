@@ -173,7 +173,6 @@ jobs:
           echo "⭕ Copied Pre-Configured .config from x86_64"
           make CC="ccache gcc" HOSTCC="ccache gcc" olddefconfig
           echo "✅ Final Kernel Build Configured for x86_64"
-          mkdir /workdir/upload 
           cp *.deb /workdir/upload
           echo "action_echo=enabled" >> $GITHUB_ENV
           echo "compile.status=success" >> $GITHUB_ENV
