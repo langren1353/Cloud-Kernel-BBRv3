@@ -120,10 +120,10 @@ jobs:
       #     repository: hamadmarri/ECHO-CPU-Scheduler
       #     path: echo-patches
       - name: Checkout Bore-Scheduler Patches
-        uses: actions/checkout@main
-        with:
-          repository: firelzrd/bore-scheduler
-          path: bore-patches
+        run: |
+          echo "⌛ Downloading Bore-Scheduler Patches..."
+          git clone --depth=1 https://github.com/firelzrd/bore-scheduler.git bore-patches
+          echo "✅ Downloaded Bore-Scheduler Patches"
       - name: Organize Patches
         run: |
           echo "⌛ Organizing Patches..."
