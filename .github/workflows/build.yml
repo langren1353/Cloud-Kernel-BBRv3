@@ -76,10 +76,15 @@ jobs:
       kernel_version: ${{ needs.prepare.outputs.kernel_version }}
       build_time: ${{ steps.get_build_time.outputs.BUILD_TIMESTAMP }}
     steps:
+      - name: Base requirements
+        run: |
+          # packages
+          apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6ED0E7B82643E131 78DBA3BC47EF2265 F8D2585B8783D481
+
       - name: Update and install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential curl git patch jq openssl quilt \
+          sudo apt-get install -y nodejs npm build-essential curl git patch jq openssl quilt \
             libncurses-dev libssl-dev libelf-dev libudev-dev libpci-dev libcap-dev libpcre2-dev libcurl4-openssl-dev \
             bison bc flex rsync debhelper lz4 pahole zstd dpkg-dev fakeroot kmod cpio xz-utils
 
