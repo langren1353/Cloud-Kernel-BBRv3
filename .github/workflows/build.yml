@@ -152,8 +152,8 @@ jobs:
           find ./cpu-scheduler -type f -name "*.patch" -printf "cpu-scheduler/%P\n" | sort >> series
           echo "# Custom Patches" >> series
           find ./custom -type f -name "*.patch" -printf "custom/%P\n" | sort >> series
-          sed -i '/android-/d' ./patches/series
-          sed -i '/documentation-drop-sphinx-version-check/d' ./patches/series
+          sed -i '/android-/d' series
+          sed -i '/documentation-drop-sphinx-version-check/d' series
           echo "✅ All Patches Organized"
       - name: Apply Patches
         run: |
