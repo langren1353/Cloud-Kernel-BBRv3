@@ -1,9 +1,9 @@
 name: Check Kernel Version Updates (6.12 LTS)
 
-on:
-  schedule:
-    - cron: "0 0 * * *" # Runs daily at 00:00 UTC
-  workflow_dispatch:
+# on:
+#   schedule:
+#     - cron: "0 0 * * *" # Runs daily at 00:00 UTC
+#   workflow_dispatch:
 
 jobs:
   check-kernel-versions:

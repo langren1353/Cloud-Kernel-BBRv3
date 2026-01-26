@@ -1,0 +1,128 @@
+Description: Implement TCPA congestion control
+TCPA is a congestion control algorithm based on Reno, but with a specific
+optimization for local/remote ports 80 and 443, setting the initial CWND to 100.
+Author: System Administrator <admin@example.com>
+---
+Index: linux-6.12.21/net/ipv4/tcp_tcpa.c
+===================================================================
+--- /dev/null
++++ linux-6.12.21/net/ipv4/tcp_tcpa.c
+@@ -0,0 +1,118 @@
++/*
++ * TCPA congestion control
++ * Based on TCP Reno
++ */
++
++#include <linux/module.h>
++#include <net/tcp.h>
++
++/* Default initial CWND for special ports */
++#define TCPA_INIT_CWND 100
++
++/* Standard Reno functions */
++void tcp_reno_cong_avoid(struct sock *sk, u32 ack, u32 acked)
++{
++	struct tcp_sock *tp = tcp_sk(sk);
++
++	if (!tcp_is_cwnd_limited(sk))
++		return;
++
++	/* In "safe" area, increase. */
++	if (tcp_in_slow_start(tp)) {
++		acked = tcp_slow_start(tp, acked);
++		if (!acked)
++			return;
++	}
++	/* In dangerous area, increase slowly. */
++	tcp_cong_avoid_ai(tp, tp->snd_cwnd, acked);
++}
++EXPORT_SYMBOL_GPL(tcp_reno_cong_avoid);
++
++u32 tcp_reno_ssthresh(struct sock *sk)
++{
++	const struct tcp_sock *tp = tcp_sk(sk);
++
++	return max(tp->snd_cwnd >> 1U, 2U);
++}
++EXPORT_SYMBOL_GPL(tcp_reno_ssthresh);
++
++u32 tcp_reno_undo_cwnd(struct sock *sk)
++{
++	return max(tcp_sk(sk)->snd_cwnd, tcp_sk(sk)->prior_cwnd);
++}
++EXPORT_SYMBOL_GPL(tcp_reno_undo_cwnd);
++
++
++static void tcpa_init(struct sock *sk)
++{
++	struct tcp_sock *tp = tcp_sk(sk);
++	struct inet_sock *inet = inet_sk(sk);
++	u16 sport, dport;
++
++	/* Get ports. Note: sk_sport/sk_dport are stored in network byte order */
++	sport = ntohs(inet->inet_sport);
++	dport = ntohs(inet->inet_dport);
++
++	/* Check if it's port 80 or 443 */
++	if (sport == 80 || sport == 443 || dport == 80 || dport == 443) {
++		tp->snd_cwnd = TCPA_INIT_CWND;
++	}
++}
++
++static struct tcp_congestion_ops tcp_tcpa = {
++	.flags		= TCP_CONG_NON_RESTRICTED,
++	.name		= "tcpa",
++	.owner		= THIS_MODULE,
++	.init		= tcpa_init,
++	.ssthresh	= tcp_reno_ssthresh,
++	.cong_avoid	= tcp_reno_cong_avoid,
++	.undo_cwnd	= tcp_reno_undo_cwnd,
++};
++
++static int __init tcpa_register(void)
++{
++	return tcp_register_congestion_control(&tcp_tcpa);
++}
++
++static void __exit tcpa_unregister(void)
++{
++	tcp_unregister_congestion_control(&tcp_tcpa);
++}
++
++module_init(tcpa_register);
++module_exit(tcpa_unregister);
++
++MODULE_AUTHOR("System Administrator");
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("TCPA TCP");
++
++Index: linux-6.12.21/net/ipv4/Kconfig
++===================================================================
++--- linux-6.12.21.orig/net/ipv4/Kconfig
+++++ linux-6.12.21/net/ipv4/Kconfig
+@@ -737,6 +737,13 @@ config TCP_CONG_CDG
+ 	  CAIA Delay-Gradient (CDG) is a hybrid congestion control
+ 	  algorithm derived from CAIA Hamilton Delay-Gradient (CHDG).
+ 
++config TCP_CONG_TCPA
++	tristate "TCPA TCP"
++	default n
++	help
++	  TCPA congestion control.
++	  Sets initial CWND to 100 for ports 80/443.
++
+ config TCP_CONG_BBR
+ 	tristate "BBR TCP"
+ 	default y
+Index: linux-6.12.21/net/ipv4/Makefile
+===================================================================
+--- linux-6.12.21.orig/net/ipv4/Makefile
++++ linux-6.12.21/net/ipv4/Makefile
+@@ -62,6 +62,7 @@ obj-$(CONFIG_TCP_CONG_BBRPLUS) += tcp_bb
+ obj-$(CONFIG_TCP_CONG_BRUTAL) += tcp_brutal.o
+ obj-$(CONFIG_TCP_CONG_BIC) += tcp_bic.o
+ obj-$(CONFIG_TCP_CONG_CDG) += tcp_cdg.o
++obj-$(CONFIG_TCP_CONG_TCPA) += tcp_tcpa.o
+ obj-$(CONFIG_TCP_CONG_CUBIC) += tcp_cubic.o
+ obj-$(CONFIG_TCP_CONG_DCTCP) += tcp_dctcp.o
+ obj-$(CONFIG_TCP_CONG_HYBLA) += tcp_hybla.o

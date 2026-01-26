@@ -8,13 +8,21 @@ on:
       kernel_version:
         description: "Kernel version"
         required: true
-        default: "6.12.30"
+        default: "latest"
         type: string
       skip_cache:
         description: "Skip Cache"
         required: false
         default: false
         type: boolean
+      compile_mode:
+        description: "Compilation Mode"
+        required: false
+        default: "github"
+        type: choice
+        options:
+          - github
+          - gitea
 
 jobs:
   prepare:
@@ -35,12 +43,17 @@ jobs:
             KERNEL_MAJOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 1)
             SKIP_CACHE=false
           else
-            KERNEL_VERSION="${{ inputs.kernel_version }}"
+            if [ "${{ inputs.kernel_version }}" == "latest" ] || [ -z "${{ inputs.kernel_version }}" ]; then
+              KERNEL_VERSION=$(curl -s https://www.kernel.org/releases.json | jq -r '.releases[] | select(.moniker == "stable") | .version' | head -n 1)
+            else
+              KERNEL_VERSION="${{ inputs.kernel_version }}"
+            fi
+            
             KERNEL_MINOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 2)
             KERNEL_MAJOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 1)
             SKIP_CACHE="${{ inputs.skip_cache }}" || SKIP_CACHE=false
           fi
-          if [ -z "$KERNEL_VERSION" ]; then
+          if [ -z "$KERNEL_VERSION" ] || [ "$KERNEL_VERSION" == "null" ]; then
             echo "❌ Failed to get kernel version"
             exit 1
           fi
@@ -112,7 +125,14 @@ jobs:
           # echo "⭕ Copied ECHO-CPU-Scheduler Patches"
           cp -R ../bore-patches/patches/stable/linux-${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }}-bore ./patches/cpu-scheduler
           echo "⭕ Copied Bore-Scheduler Patches"
-          cp -R ../kernel_patches/${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }} ./patches/custom
+          
+          if [ -d "../kernel_patches/${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }}" ]; then
+            cp -R ../kernel_patches/${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }} ./patches/custom
+            echo "⭕ Copied Custom Patches from ${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }}"
+          else
+            cp -R ../kernel_patches/6.12 ./patches/custom
+            echo "⚠️ Custom Patches for ${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }} not found, using 6.12 patches as fallback"
+          fi
           cd patches
           echo "# Net Patches from Xanmod" >> series
           find ./net -type f -name "*.patch" -printf "net/%P\n" | sort >> series

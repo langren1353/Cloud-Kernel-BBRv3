@@ -1,20 +1,20 @@
 name: Build Debian Kernel (arm64)
 
-on:
-  repository_dispatch:
-    types: [trigger-arm64-build]
-  workflow_dispatch:
-    inputs:
-      kernel_version:
-        description: "Kernel version"
-        required: true
-        default: "6.12.30"
-        type: string
-      skip_cache:
-        description: "Skip Cache"
-        required: false
-        default: false
-        type: boolean
+# on:
+#   repository_dispatch:
+#     types: [trigger-arm64-build]
+#   workflow_dispatch:
+#     inputs:
+#       kernel_version:
+#         description: "Kernel version"
+#         required: true
+#         default: "6.12.30"
+#         type: string
+#       skip_cache:
+#         description: "Skip Cache"
+#         required: false
+#         default: false
+#         type: boolean
 
 jobs:
   prepare:
