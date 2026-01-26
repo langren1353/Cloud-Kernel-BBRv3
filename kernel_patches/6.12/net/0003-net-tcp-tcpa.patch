@@ -7,7 +7,7 @@ Index: linux-6.12.21/net/ipv4/tcp_tcpa.c
 ===================================================================
 --- /dev/null
 +++ linux-6.12.21/net/ipv4/tcp_tcpa.c
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,88 @@
 +/*
 + * TCPA congestion control
 + * Based on TCP Reno
@@ -118,7 +118,7 @@ Index: linux-6.12.21/net/ipv4/Makefile
 ===================================================================
 --- linux-6.12.21.orig/net/ipv4/Makefile
 +++ linux-6.12.21/net/ipv4/Makefile
-@@ -62,6 +62,7 @@ obj-$(CONFIG_TCP_CONG_BBRPLUS) += tcp_bb
+@@ -62,7 +62,8 @@ obj-$(CONFIG_TCP_CONG_BBRPLUS) += tcp_bb
  obj-$(CONFIG_TCP_CONG_BRUTAL) += tcp_brutal.o
  obj-$(CONFIG_TCP_CONG_BIC) += tcp_bic.o
  obj-$(CONFIG_TCP_CONG_CDG) += tcp_cdg.o
