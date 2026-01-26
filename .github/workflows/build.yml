@@ -109,7 +109,7 @@ jobs:
           kernel_ver=$(curl -s https://www.kernel.org/ | grep ' <a href="https://cdn.kernel.org/pub/linux/kernel/' | head -n 1 | awk -F '[>]' '{print $2}' | awk -F '[<]' '{print $1}')
           wget -O kernel.tar.xz $kernel_file
           tar -Jxvf kernel.tar.xz -C /workdir
-          mv linux-$kernel_ver linux
+          mv /workdir/linux-$kernel_ver linux
           echo "✅ Downloaded Linux Kernel Source Code for ${{ needs.prepare.outputs.kernel_version }}"
       - name: Download Debian Kernel Additional Source
         run: |
