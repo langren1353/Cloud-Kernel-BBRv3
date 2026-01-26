@@ -173,7 +173,6 @@ jobs:
           echo "⭕ Copied Pre-Configured .config from x86_64"
           make CC="ccache gcc" HOSTCC="ccache gcc" olddefconfig
           echo "✅ Final Kernel Build Configured for x86_64"
-          cp *.deb /workdir/upload
           echo "action_echo=enabled" >> $GITHUB_ENV
           echo "compile.status=success" >> $GITHUB_ENV
           echo "FILE_DATE=Kernel_Debian_$kernel_ver_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
@@ -188,8 +187,12 @@ jobs:
           cd linux
           make -j $(nproc) CC="ccache gcc" HOSTCC="ccache gcc" bindeb-pkg
           echo "✅ Kernel (Debian Package) Built Successfully"
-          cp .config ../linux-${{ needs.prepare.outputs.kernel_version }}-amd64.config
           echo "✅ Copied Kernel Config"
+          mkdir -p /workdir/upload
+          cp ../*.deb /workdir/upload/
+          cp ../*.changes /workdir/upload/
+          cp ../*.buildinfo /workdir/upload/
+          mv ../linux-${{ needs.prepare.outputs.kernel_version }}-amd64.config /workdir/upload/
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
