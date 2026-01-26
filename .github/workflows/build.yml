@@ -187,7 +187,7 @@ jobs:
           cp .config ../linux-${{ needs.prepare.outputs.kernel_version }}-amd64.config
           echo "✅ Copied Kernel Config"
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: kernel-x86_64
           path: |
@@ -210,7 +210,7 @@ jobs:
     container: qctt/kernelbuild:debian12
     steps:
       - name: Download Artifacts for x86_64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v3
         with:
           name: kernel-x86_64
           path: ./
