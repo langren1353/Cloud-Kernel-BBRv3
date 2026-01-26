@@ -13,7 +13,7 @@ on:
       skip_cache:
         description: "Skip Cache"
         required: false
-        default: false
+        default: true
         type: boolean
       compile_mode:
         description: "Compilation Mode"
@@ -107,7 +107,7 @@ jobs:
       - name: Download Debian Kernel Additional Source
         run: |
           echo "⌛ Downloading Debian Kernel Additional Source..."
-          git clone -b debian/${{ needs.prepare.outputs.kernel_version }}-1 --depth=1 https://salsa.debian.org/kernel-team/linux.git linux-debian
+          git clone -b debian/latest --depth=1 https://salsa.debian.org/kernel-team/linux.git linux-debian
           echo "✅ Downloaded Debian Kernel Additional Source"
       - name: Download Xanmod Patches
         run: |
