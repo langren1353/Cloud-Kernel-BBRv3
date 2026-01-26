@@ -38,25 +38,28 @@ jobs:
       - name: Prepare Build Parameters
         id: prepare_build_parameters
         run: |
+          # Install dependencies
+          apt-get update && apt-get install -y curl ca-certificates
+
+          # 1. Determine Input Version
           if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
             KERNEL_VERSION="${{ github.event.client_payload.kernel_version }}"
-            KERNEL_MINOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 2)
-            KERNEL_MAJOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 1)
             SKIP_CACHE=false
           else
-            # Install dependencies
-            apt-get update && apt-get install -y curl ca-certificates
-
-            if [ "${{ inputs.kernel_version }}" == "latest" ] || [ -z "${{ inputs.kernel_version }}" ]; then
-              KERNEL_VERSION=$(curl -s https://www.kernel.org/ | grep ' <a href="https://cdn.kernel.org/pub/linux/kernel/' | head -n 1 | awk -F '[>]' '{print $2}' | awk -F '[<]' '{print $1}')
-            else
-              KERNEL_VERSION="${{ inputs.kernel_version }}"
-            fi
-            
-            KERNEL_MINOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 2)
-            KERNEL_MAJOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 1)
+            KERNEL_VERSION="${{ inputs.kernel_version }}"
             SKIP_CACHE="${{ inputs.skip_cache }}" || SKIP_CACHE=false
           fi
+
+          # 2. Resolve "latest" if needed
+          if [ "$KERNEL_VERSION" == "latest" ] || [ -z "$KERNEL_VERSION" ] || [ "$KERNEL_VERSION" == "null" ]; then
+            echo "🔍 Resolving 'latest' kernel version..."
+            KERNEL_VERSION=$(curl -s https://www.kernel.org/ | grep ' <a href="https://cdn.kernel.org/pub/linux/kernel/' | head -n 1 | awk -F '[>]' '{print $2}' | awk -F '[<]' '{print $1}')
+          fi
+
+          # 3. Derive Major/Minor Versions
+          KERNEL_MINOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 2)
+          KERNEL_MAJOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 1)
+          
           if [ -z "$KERNEL_VERSION" ] || [ "$KERNEL_VERSION" == "null" ]; then
             echo "❌ Failed to get kernel version"
             exit 1
