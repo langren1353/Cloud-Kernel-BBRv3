@@ -21,9 +21,9 @@ on:
         default: "github"
         type: choice
         options:
-          - github
           - gitea
-
+          - github
+          
 jobs:
   prepare:
     name: Prepare Build Parameters
