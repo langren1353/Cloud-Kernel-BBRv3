@@ -27,7 +27,8 @@ on:
 jobs:
   prepare:
     name: Prepare Build Parameters
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    container: qctt/kernelbuild:debian12
     outputs:
       kernel_version: ${{ steps.prepare_build_parameters.outputs.KERNEL_VERSION }}
       kernel_minor_version: ${{ steps.prepare_build_parameters.outputs.KERNEL_MINOR_VERSION }}
