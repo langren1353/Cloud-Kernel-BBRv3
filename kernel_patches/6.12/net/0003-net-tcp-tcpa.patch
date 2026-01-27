@@ -34,7 +34,7 @@ diff --git a/net/ipv4/Makefile b/net/ipv4/Makefile
 index ec36d2ec059e..1733e2df22eb 100644
 --- a/net/ipv4/Makefile
 +++ b/net/ipv4/Makefile
-@@ -62,6 +62,7 @@ obj-$(CONFIG_INET_TCP_DIAG) += tcp_diag.o
+@@ -62,4 +62,5 @@ obj-$(CONFIG_INET_TCP_DIAG) += tcp_diag.o
  obj-$(CONFIG_TCP_CONG_BIC) += tcp_bic.o
  obj-$(CONFIG_TCP_CONG_CDG) += tcp_cdg.o
 +obj-$(CONFIG_TCP_CONG_TCPA) += tcp_tcpa.o
