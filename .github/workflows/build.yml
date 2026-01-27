@@ -187,6 +187,8 @@ jobs:
           cd linux
           make -j $(nproc) CC="ccache gcc" HOSTCC="ccache gcc" bindeb-pkg
           echo "✅ Kernel (Debian Package) Built Successfully"
+          echo "🧹 Cleaning up dbg packages..."
+          rm -f ../*-dbg_*.deb
           echo "✅ Copied Kernel Config"
           mkdir -p /workdir/upload
           cp ../*.deb /workdir/upload/
@@ -228,12 +230,4 @@ jobs:
           tag_name: ${{ env.release_tag }}
           body_path: release.txt
           files: /workdir/upload/*
-
-      - name: Delete workflow runs
-        uses: GitRML/delete-workflow-runs@main
-        with:
-          token: ${{ secrets.TOKEN }}
-          repository: ${{ github.repository }}
-          retain_days: 1
-          keep_minimum_runs: 2
 
