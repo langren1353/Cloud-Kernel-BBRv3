@@ -192,7 +192,6 @@ jobs:
           cp ../*.deb /workdir/upload/
           cp ../*.changes /workdir/upload/
           cp ../*.buildinfo /workdir/upload/
-          mv ../linux-${{ needs.prepare.outputs.kernel_version }}-amd64.config /workdir/upload/
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
         with:
