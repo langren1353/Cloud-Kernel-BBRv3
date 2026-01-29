@@ -171,6 +171,13 @@ jobs:
           cd linux
           cp ../configs/x86_64.config .config
           echo "⭕ Copied Pre-Configured .config from x86_64"
+
+          # Cloud Kernel Tailoring
+          echo "✂️ Apply Cloud Kernel Tailoring..."
+          sed -i 's/\r$//' ../configs/cloud_tailoring.sh
+          chmod +x ../configs/cloud_tailoring.sh
+          ../configs/cloud_tailoring.sh
+
           make CC="ccache gcc" HOSTCC="ccache gcc" olddefconfig
           echo "✅ Final Kernel Build Configured for x86_64"
           echo "action_echo=enabled" >> $GITHUB_ENV
@@ -185,6 +192,8 @@ jobs:
         run: |
           echo "⌛ Start Building Kernel (Debian Package) for x86_64..."
           cd linux
+          export KDEB_PKGVERSION=$(make kernelrelease)-$(date +%Y%m%d%H%M)
+          echo "🏷️ Setting KDEB_PKGVERSION to $KDEB_PKGVERSION"
           make -j $(nproc) CC="ccache gcc" HOSTCC="ccache gcc" bindeb-pkg
           echo "✅ Kernel (Debian Package) Built Successfully"
           echo "🧹 Cleaning up dbg packages..."
