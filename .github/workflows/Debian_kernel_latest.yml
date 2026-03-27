@@ -102,6 +102,7 @@ jobs:
         du -sh $TMPDIR/
         echo "开始编译"
         time make -j$(nproc) bindeb-pkg
+        rm -f /workdir/*-dbg_*.deb
         cd /workdir && mv *.deb /workdir/upload
         echo "action_echo=enabled" >> $GITHUB_ENV
         echo "COMPILE_STATUS=success" >> $GITHUB_ENV
