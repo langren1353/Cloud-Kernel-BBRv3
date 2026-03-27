@@ -1,28 +1,7 @@
 name: Build Debian Kernel (x86_64)
 
 on:
-  repository_dispatch:
-    types: [trigger-x86_64-build]
   workflow_dispatch:
-    inputs:
-      kernel_version:
-        description: "Kernel version"
-        required: true
-        default: "latest"
-        type: string
-      skip_cache:
-        description: "Skip Cache"
-        required: false
-        default: true
-        type: boolean
-      compile_mode:
-        description: "Compilation Mode"
-        required: false
-        default: "gitea"
-        type: choice
-        options:
-          - gitea
-          - github
           
 jobs:
   prepare:
@@ -33,27 +12,17 @@ jobs:
       kernel_version: ${{ steps.prepare_build_parameters.outputs.KERNEL_VERSION }}
       kernel_minor_version: ${{ steps.prepare_build_parameters.outputs.KERNEL_MINOR_VERSION }}
       kernel_major_version: ${{ steps.prepare_build_parameters.outputs.KERNEL_MAJOR_VERSION }}
-      skip_cache: ${{ steps.prepare_build_parameters.outputs.SKIP_CACHE }}
     steps:
       - name: Prepare Build Parameters
         id: prepare_build_parameters
         run: |
-          # Install dependencies
+          set -e
           apt-get update && apt-get install -y curl ca-certificates
 
-          # 1. Determine Input Version
-          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            KERNEL_VERSION="${{ github.event.client_payload.kernel_version }}"
-            SKIP_CACHE=false
-          else
-            KERNEL_VERSION="${{ inputs.kernel_version }}"
-            SKIP_CACHE="${{ inputs.skip_cache }}" || SKIP_CACHE=false
-          fi
+          latest_kernel_version=$(curl -fsSL https://www.kernel.org/ | grep ' <a href="https://cdn.kernel.org/pub/linux/kernel/' | head -n 1 | awk -F '[>]' '{print $2}' | awk -F '[<]' '{print $1}')
 
-          # Trim whitespace
-          KERNEL_VERSION=$(curl -s https://www.kernel.org/ | grep ' <a href="https://cdn.kernel.org/pub/linux/kernel/' | head -n 1 | awk -F '[>]' '{print $2}' | awk -F '[<]' '{print $1}')
+          KERNEL_VERSION="$latest_kernel_version"
 
-          # 3. Derive Major/Minor Versions
           KERNEL_MINOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 2)
           KERNEL_MAJOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 1)
           
@@ -64,11 +33,9 @@ jobs:
           echo "✅ Using kernel version: $KERNEL_VERSION"
           echo "✅ Using kernel minor version: $KERNEL_MINOR_VERSION"
           echo "✅ Using kernel major version: $KERNEL_MAJOR_VERSION"
-          echo "✅ Using skip cache: $SKIP_CACHE"
           echo "KERNEL_VERSION=$KERNEL_VERSION" >> $GITHUB_OUTPUT
           echo "KERNEL_MINOR_VERSION=$KERNEL_MINOR_VERSION" >> $GITHUB_OUTPUT
           echo "KERNEL_MAJOR_VERSION=$KERNEL_MAJOR_VERSION" >> $GITHUB_OUTPUT
-          echo "SKIP_CACHE=$SKIP_CACHE" >> $GITHUB_OUTPUT
 
   build:
     name: Build Debian Kernel Package for x86_64
@@ -81,26 +48,26 @@ jobs:
     steps:
       - name: Base requirements
         run: |
-          # packages
-          apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 6ED0E7B82643E131 78DBA3BC47EF2265 F8D2585B8783D481
+          apt-get update
 
       - name: Update and install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y nodejs npm build-essential curl git patch jq openssl quilt \
+          apt-get update
+          apt-get install -y nodejs npm build-essential curl git patch jq openssl quilt wget \
             libncurses-dev libssl-dev libelf-dev libudev-dev libpci-dev libcap-dev libpcre2-dev libcurl4-openssl-dev \
             bison bc flex rsync debhelper lz4 pahole zstd dpkg-dev fakeroot kmod cpio xz-utils
 
       - name: Checkout Workflow Source Code
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
         with:
           fetch-tags: true
       - name: Download Linux Kernel Source
         run: |
+          set -e
           echo "⌛ Downloading Linux Kernel Source Code for ${{ needs.prepare.outputs.kernel_version }}..."
-          kernel_file=$(curl -s https://www.kernel.org/ | grep 'alt="Download"' | awk -F '"' '{print $2}')
-          kernel_ver=$(curl -s https://www.kernel.org/ | grep ' <a href="https://cdn.kernel.org/pub/linux/kernel/' | head -n 1 | awk -F '[>]' '{print $2}' | awk -F '[<]' '{print $1}')
-          wget -O kernel.tar.xz $kernel_file
+          kernel_ver="${{ needs.prepare.outputs.kernel_version }}"
+          kernel_major_version="${{ needs.prepare.outputs.kernel_major_version }}"
+          wget -O kernel.tar.xz "https://cdn.kernel.org/pub/linux/kernel/v${kernel_major_version}.x/linux-${kernel_ver}.tar.xz"
           tar -Jxvf kernel.tar.xz -C /workdir
           mv /workdir/linux-$kernel_ver linux
           echo "✅ Downloaded Linux Kernel Source Code for ${{ needs.prepare.outputs.kernel_version }}"
@@ -114,11 +81,6 @@ jobs:
           echo "⌛ Downloading Xanmod Patches..."
           git clone --depth=1 https://gitlab.com/xanmod/linux-patches.git linux-xanmod-patches
           echo "✅ Downloaded Xanmod Patches"
-      # - name: Checkout ECHO-CPU-Scheduler
-      #   uses: actions/checkout@main
-      #   with:
-      #     repository: hamadmarri/ECHO-CPU-Scheduler
-      #     path: echo-patches
       - name: Checkout Bore-Scheduler Patches
         run: |
           echo "⌛ Downloading Bore-Scheduler Patches..."
@@ -167,7 +129,9 @@ jobs:
           key: linux-${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }}-amd64
       - name: Configure Kernel Build
         run: |
+          set -e
           echo "⌛ Configuring Kernel Build..."
+          mkdir -p /workdir/upload
           cd linux
           cp ../configs/x86_64.config .config
           echo "⭕ Copied Pre-Configured .config from x86_64"
@@ -179,10 +143,9 @@ jobs:
           ../configs/cloud_tailoring.sh
 
           make CC="ccache gcc" HOSTCC="ccache gcc" olddefconfig
+          cp .config /workdir/upload/.config
           echo "✅ Final Kernel Build Configured for x86_64"
-          echo "action_echo=enabled" >> $GITHUB_ENV
-          echo "compile.status=success" >> $GITHUB_ENV
-          echo "FILE_DATE=Kernel_Debian_$kernel_ver_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+          echo "FILE_DATE=Kernel_Debian_${{ needs.prepare.outputs.kernel_version }}_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
       - name: Build Kernel (Debian Package)
         env:
           KBUILD_BUILD_USER: "cloudpassenger"
@@ -204,14 +167,10 @@ jobs:
           cp ../*.changes /workdir/upload/
           cp ../*.buildinfo /workdir/upload/
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: kernel-x86_64
-          path: |
-            *.deb
-            *.changes
-            *.buildinfo
-            *.config
+          path: /workdir/upload/*
       - name: Get build time
         id: get_build_time
         run: |
@@ -222,21 +181,68 @@ jobs:
   
       - name: Generate release tag
         id: tag
-        if: ${{ env.UPLOAD_RELEASE }} == 'true' && ${{ env.compile }} = == 'success' && !cancelled()
         run: |
-          kernel_ver=$(curl -s https://www.kernel.org/ | grep ' <a href="https://cdn.kernel.org/pub/linux/kernel/' | head -n 1 | awk -F '[>]' '{print $2}' | awk -F '[<]' '{print $1}')
-          echo "action_echo=enabled" >> $GITHUB_ENV
-          echo "release_tag=Debian_Kernel_${kernel_ver}_latest_bbr_$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_ENV
-          touch release.txt
-          echo "tag.status=success" >> $GITHUB_ENV
+          kernel_ver="${{ needs.prepare.outputs.kernel_version }}"
+          echo "release_tag=Debian_Kernel_${kernel_ver}_bbr_$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_ENV
+          cat <<EOF > release.txt
+          Kernel Version: ${kernel_ver}
+          Build Time: $(date -Is)
+          Architecture: x86_64
+          EOF
 
       - name: Upload Kernel to release
-        uses: softprops/action-gh-release@v1
-        if: ${{ env.tag.status }} == 'success' && !cancelled()
+        run: |
+          set -e
+          if [ -z "${RELEASE_TOKEN}" ]; then
+            echo "RELEASE_TOKEN is required"
+            exit 1
+          fi
+
+          repo_name="${GITHUB_REPOSITORY:-$GITEA_REPOSITORY}"
+          api_url="${GITHUB_API_URL:-${GITEA_SERVER_URL%/}/api/v1}"
+
+          if [ -z "$repo_name" ] || [ -z "$api_url" ]; then
+            echo "Repository environment is incomplete"
+            exit 1
+          fi
+
+          release_tag="${{ env.release_tag }}"
+          release_name="$release_tag"
+          release_body=$(cat release.txt)
+
+          create_payload=$(jq -n \
+            --arg tag_name "$release_tag" \
+            --arg name "$release_name" \
+            --arg body "$release_body" \
+            '{tag_name: $tag_name, name: $name, body: $body, draft: false, prerelease: false}')
+
+          release_response=$(curl -fsSL \
+            -H "Authorization: token ${RELEASE_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$create_payload" \
+            "${api_url}/repos/${repo_name}/releases")
+
+          release_id=$(printf '%s' "$release_response" | jq -r '.id // empty')
+          upload_url=$(printf '%s' "$release_response" | jq -r '.upload_url // empty')
+
+          if [ -z "$release_id" ] || [ "$release_id" = "null" ]; then
+            echo "Unable to determine release id"
+            exit 1
+          fi
+
+          for file in /workdir/upload/*; do
+            file_name=$(basename "$file")
+            if printf '%s' "$upload_url" | grep -q '{?name,label}'; then
+              target_url=$(printf '%s' "$upload_url" | sed 's/{?name,label}//')"?name=${file_name}"
+            else
+              target_url="${api_url}/repos/${repo_name}/releases/${release_id}/assets?name=${file_name}"
+            fi
+            curl -fsSL \
+              -H "Authorization: token ${RELEASE_TOKEN}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$file" \
+              "$target_url"
+          done
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}
-        with:
-          tag_name: ${{ env.release_tag }}
-          body_path: release.txt
-          files: /workdir/upload/*
+          RELEASE_TOKEN: ${{ secrets.TOKEN }}
 
