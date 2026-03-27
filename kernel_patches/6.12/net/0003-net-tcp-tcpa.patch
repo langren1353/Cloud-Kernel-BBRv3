@@ -51,18 +51,19 @@ index 000000000000..0992ec0b4d89
 + * BBR/TCPA congestion control computes the sending rate based on the delivery
 + * rate (throughput) estimated from ACKs.
 + *
-+ * TCPA modification: Sets initial CWND to 100 for ports 80/443.
++ * TCPA modification: Uses a configurable initial CWND for ports 80/443.
 + */
 +#include <linux/btf.h>
 +#include <linux/btf_ids.h>
 +#include <linux/module.h>
++#include <linux/sysctl.h>
 +#include <net/tcp.h>
 +#include <linux/inet_diag.h>
 +#include <linux/inet.h>
 +#include <linux/random.h>
 +#include <linux/win_minmax.h>
 +
-+#define TCPA_INIT_CWND 100
++#define TCPA_INIT_CWND 64
 +
 +#define BW_SCALE 24
 +#define BW_UNIT (1 << BW_SCALE)
@@ -155,6 +156,20 @@ index 000000000000..0992ec0b4d89
 +static const u32 tcpa_extra_acked_win_rtts = 5;
 +static const u32 tcpa_ack_epoch_acked_reset_thresh = 1U << 20;
 +static const u32 tcpa_extra_acked_max_us = 100 * 1000;
++static int tcpa_init_cwnd __read_mostly = TCPA_INIT_CWND;
++
++static struct ctl_table tcpa_sysctl_table[] = {
++	{
++		.procname	= "tcp_tcpa_init_cwnd",
++		.data		= &tcpa_init_cwnd,
++		.maxlen		= sizeof(tcpa_init_cwnd),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++		.extra1		= SYSCTL_ONE,
++	},
++};
++
++static struct ctl_table_header *tcpa_sysctl_hdr;
 +
 +static void tcpa_check_probe_rtt_done(struct sock *sk);
 +
@@ -808,10 +823,7 @@ index 000000000000..0992ec0b4d89
 +	sport = ntohs(inet->inet_sport);
 +	dport = ntohs(inet->inet_dport);
 +	if (sport == 80 || sport == 443 || dport == 80 || dport == 443) {
-+		tp->snd_cwnd = TCPA_INIT_CWND;
-+		pr_info("TCPA: Init sk=%p ports=%u/%u cwnd=%d\n", sk, sport, dport, TCPA_INIT_CWND);
-+	} else {
-+		pr_info("TCPA: Init sk=%p ports=%u/%u default cwnd\n", sk, sport, dport);
++		tp->snd_cwnd = tcpa_init_cwnd;
 +	}
 +
 +	tcpa->has_seen_rtt = 0;
@@ -935,11 +947,23 @@ index 000000000000..0992ec0b4d89
 +					&tcp_tcpa_kfunc_set);
 +	if (ret < 0)
 +		return ret;
-+	return tcp_register_congestion_control(&tcp_tcpa_cong_ops);
++	ret = tcp_register_congestion_control(&tcp_tcpa_cong_ops);
++	if (ret < 0)
++		return ret;
++
++	tcpa_sysctl_hdr = register_net_sysctl(&init_net, "net/ipv4",
++					      tcpa_sysctl_table);
++	if (!tcpa_sysctl_hdr) {
++		tcp_unregister_congestion_control(&tcp_tcpa_cong_ops);
++		return -ENOMEM;
++	}
++
++	return 0;
 +}
 +
 +static void __exit tcpa_unregister(void)
 +{
++	unregister_net_sysctl_table(tcpa_sysctl_hdr);
 +	tcp_unregister_congestion_control(&tcp_tcpa_cong_ops);
 +}
 +
