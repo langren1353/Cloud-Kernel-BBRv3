@@ -41,8 +41,57 @@ fi
 ./scripts/config --disable CONFIG_KUNIT
 ./scripts/config --disable CONFIG_RUNTIME_TESTING
 ./scripts/config --disable CONFIG_DEBUG_INFO
+./scripts/config --disable CONFIG_DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
+./scripts/config --disable CONFIG_DEBUG_INFO_DWARF4
+./scripts/config --disable CONFIG_DEBUG_INFO_DWARF5
+./scripts/config --disable CONFIG_DEBUG_INFO_BTF
 ./scripts/config --disable CONFIG_DEBUG_KERNEL
 ./scripts/config --disable CONFIG_SLUB_DEBUG
+./scripts/config --disable CONFIG_PROFILING
+./scripts/config --disable CONFIG_PERF_EVENTS
+./scripts/config --disable CONFIG_KALLSYMS_ALL
+./scripts/config --disable CONFIG_DAMON
+
+# 云内核裁剪 - 非云服务通用能力
+./scripts/config --disable CONFIG_HIBERNATION
+./scripts/config --disable CONFIG_SUSPEND
+./scripts/config --disable CONFIG_CRASH_DUMP
+./scripts/config --disable CONFIG_KEXEC
+./scripts/config --disable CONFIG_KEXEC_FILE
+./scripts/config --disable CONFIG_LIVEPATCH
+./scripts/config --disable CONFIG_FW_UPLOAD
+./scripts/config --disable CONFIG_SECRETMEM
+./scripts/config --disable CONFIG_USERFAULTFD
+./scripts/config --disable CONFIG_BLK_DEV_RAM
+./scripts/config --disable CONFIG_DRBD
+./scripts/config --disable CONFIG_NBD
+./scripts/config --disable CONFIG_NVME_TARGET
+./scripts/config --disable CONFIG_PCI_ENDPOINT
+
+# 云内核裁剪 - 对网络速度帮助有限的附加协议/平台功能
+./scripts/config --disable CONFIG_RDS
+./scripts/config --disable CONFIG_TIPC
+./scripts/config --disable CONFIG_L2TP
+./scripts/config --disable CONFIG_MPLS
+./scripts/config --disable CONFIG_OPENVSWITCH
+
+# 云内核裁剪 - 保留低配虚拟机友好能力
+./scripts/config --module CONFIG_ZRAM
+./scripts/config --enable CONFIG_KSM
+./scripts/config --enable CONFIG_NUMA
+./scripts/config --enable CONFIG_CPU_IDLE
+./scripts/config --enable CONFIG_VIRTIO
+./scripts/config --enable CONFIG_NETFILTER
+./scripts/config --enable CONFIG_BPF
+./scripts/config --enable CONFIG_BPF_JIT
+./scripts/config --enable CONFIG_XDP_SOCKETS
+./scripts/config --enable CONFIG_TCP_CONG_BBR
+./scripts/config --module CONFIG_TCP_CONG_BBRPLUS
+./scripts/config --module CONFIG_TCP_CONG_BRUTAL
+./scripts/config --enable CONFIG_DEFAULT_BBR
+./scripts/config --enable CONFIG_NET_SCH_FQ_CODEL
+./scripts/config --enable CONFIG_DEFAULT_FQ_CODEL
+./scripts/config --enable CONFIG_NET_SCH_CAKE
 
 # 云内核裁剪 - 网络厂商 (激进裁剪)
 ./scripts/config --disable CONFIG_NET_VENDOR_3COM
