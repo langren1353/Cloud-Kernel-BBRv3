@@ -31,6 +31,7 @@ jobs:
         wget -qO /etc/apt/keyrings/debian-archive-key-12-security.asc https://ftp-master.debian.org/keys/archive-key-12-security.asc
         gpg --dearmor -o /etc/apt/keyrings/debian-archive-key-12.gpg /etc/apt/keyrings/debian-archive-key-12.asc
         gpg --dearmor -o /etc/apt/keyrings/debian-archive-key-12-security.gpg /etc/apt/keyrings/debian-archive-key-12-security.asc
+        rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources
         cat <<'EOF' >/etc/apt/sources.list
         deb [signed-by=/etc/apt/keyrings/debian-archive-key-12.gpg] http://deb.debian.org/debian bookworm main
         deb [signed-by=/etc/apt/keyrings/debian-archive-key-12.gpg] http://deb.debian.org/debian bookworm-updates main
