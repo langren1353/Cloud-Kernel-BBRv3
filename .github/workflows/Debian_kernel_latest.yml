@@ -116,7 +116,7 @@ jobs:
         files: /workdir/upload/*
 
     - name: Delete workflow runs
-      uses: GitRML/delete-workflow-runs@v2
+      uses: GitRML/delete-workflow-runs@v1.2.2
       with:
         token: ${{ secrets.TOKEN }}
         repository: ${{ github.repository }}
