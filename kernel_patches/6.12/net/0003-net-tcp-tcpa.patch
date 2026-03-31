@@ -63,8 +63,8 @@ index 000000000000..0992ec0b4d89
 +#include <linux/random.h>
 +#include <linux/win_minmax.h>
 +
-+#define TCPA_INIT_CWND 16
-+#define TCPA_TCPCONN_INIT_CWND 64
++#define TCPA_INIT_CWND 12
++#define TCPA_TCPCONN_INIT_CWND 24
 +
 +#define BW_SCALE 24
 +#define BW_UNIT (1 << BW_SCALE)

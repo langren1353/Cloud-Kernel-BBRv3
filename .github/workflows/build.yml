@@ -1,59 +1,70 @@
 name: Build Debian Kernel (x86_64)
 
 on:
+  repository_dispatch:
+    types: [trigger-x86_64-build]
   workflow_dispatch:
-          
+    inputs:
+      kernel_version:
+        description: "Kernel version"
+        required: true
+        default: "6.12.30"
+        type: string
+      skip_cache:
+        description: "Skip Cache"
+        required: false
+        default: false
+        type: boolean
+
 jobs:
   prepare:
     name: Prepare Build Parameters
-    runs-on: ubuntu-latest
-    container: qctt/kernelbuild:debian12
+    runs-on: ubuntu-24.04
     outputs:
       kernel_version: ${{ steps.prepare_build_parameters.outputs.KERNEL_VERSION }}
       kernel_minor_version: ${{ steps.prepare_build_parameters.outputs.KERNEL_MINOR_VERSION }}
       kernel_major_version: ${{ steps.prepare_build_parameters.outputs.KERNEL_MAJOR_VERSION }}
+      skip_cache: ${{ steps.prepare_build_parameters.outputs.SKIP_CACHE }}
     steps:
       - name: Prepare Build Parameters
         id: prepare_build_parameters
         run: |
-          set -e
-          apt-get update && apt-get install -y curl ca-certificates
-
-          latest_kernel_version=$(curl -fsSL https://www.kernel.org/ | grep ' <a href="https://cdn.kernel.org/pub/linux/kernel/' | head -n 1 | awk -F '[>]' '{print $2}' | awk -F '[<]' '{print $1}')
-
-          KERNEL_VERSION="$latest_kernel_version"
-
-          KERNEL_MINOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 2)
-          KERNEL_MAJOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 1)
-          
-          if [ -z "$KERNEL_VERSION" ] || [ "$KERNEL_VERSION" == "null" ]; then
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            KERNEL_VERSION="${{ github.event.client_payload.kernel_version }}"
+            KERNEL_MINOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 2)
+            KERNEL_MAJOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 1)
+            SKIP_CACHE=false
+          else
+            KERNEL_VERSION="${{ inputs.kernel_version }}"
+            KERNEL_MINOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 2)
+            KERNEL_MAJOR_VERSION=$(echo "$KERNEL_VERSION" | cut -d '.' -f 1)
+            SKIP_CACHE="${{ inputs.skip_cache }}" || SKIP_CACHE=false
+          fi
+          if [ -z "$KERNEL_VERSION" ]; then
             echo "❌ Failed to get kernel version"
             exit 1
           fi
           echo "✅ Using kernel version: $KERNEL_VERSION"
           echo "✅ Using kernel minor version: $KERNEL_MINOR_VERSION"
           echo "✅ Using kernel major version: $KERNEL_MAJOR_VERSION"
+          echo "✅ Using skip cache: $SKIP_CACHE"
           echo "KERNEL_VERSION=$KERNEL_VERSION" >> $GITHUB_OUTPUT
           echo "KERNEL_MINOR_VERSION=$KERNEL_MINOR_VERSION" >> $GITHUB_OUTPUT
           echo "KERNEL_MAJOR_VERSION=$KERNEL_MAJOR_VERSION" >> $GITHUB_OUTPUT
+          echo "SKIP_CACHE=$SKIP_CACHE" >> $GITHUB_OUTPUT
 
   build:
     name: Build Debian Kernel Package for x86_64
-    runs-on: ubuntu-latest
-    container: qctt/kernelbuild:debian12
+    runs-on: ubuntu-24.04
     needs: prepare
     outputs:
       kernel_version: ${{ needs.prepare.outputs.kernel_version }}
       build_time: ${{ steps.get_build_time.outputs.BUILD_TIMESTAMP }}
     steps:
-      - name: Base requirements
-        run: |
-          apt-get update
-
       - name: Update and install dependencies
         run: |
-          apt-get update
-          apt-get install -y nodejs npm build-essential curl git patch jq openssl quilt wget \
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl git patch jq openssl quilt \
             libncurses-dev libssl-dev libelf-dev libudev-dev libpci-dev libcap-dev libpcre2-dev libcurl4-openssl-dev \
             bison bc flex rsync debhelper lz4 pahole zstd dpkg-dev fakeroot kmod cpio xz-utils
 
@@ -63,35 +74,37 @@ jobs:
           fetch-tags: true
       - name: Download Linux Kernel Source
         run: |
-          set -e
           echo "⌛ Downloading Linux Kernel Source Code for ${{ needs.prepare.outputs.kernel_version }}..."
-          kernel_ver="${{ needs.prepare.outputs.kernel_version }}"
-          kernel_major_version="${{ needs.prepare.outputs.kernel_major_version }}"
-          wget -O kernel.tar.xz "https://cdn.kernel.org/pub/linux/kernel/v${kernel_major_version}.x/linux-${kernel_ver}.tar.xz"
-          tar -Jxvf kernel.tar.xz -C /workdir
-          mv /workdir/linux-$kernel_ver linux
+          wget https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${{ needs.prepare.outputs.kernel_version }}.tar.xz
+          tar -xf linux-${{ needs.prepare.outputs.kernel_version }}.tar.xz
+          rm linux-${{ needs.prepare.outputs.kernel_version }}.tar.xz
+          mv linux-${{ needs.prepare.outputs.kernel_version }} linux
           echo "✅ Downloaded Linux Kernel Source Code for ${{ needs.prepare.outputs.kernel_version }}"
       - name: Download Debian Kernel Additional Source
         run: |
           echo "⌛ Downloading Debian Kernel Additional Source..."
-          git clone -b debian/latest --depth=1 https://salsa.debian.org/kernel-team/linux.git linux-debian
+          git clone -b debian/${{ needs.prepare.outputs.kernel_version }}-1 --depth=1 https://salsa.debian.org/kernel-team/linux.git linux-debian
           echo "✅ Downloaded Debian Kernel Additional Source"
       - name: Download Xanmod Patches
         run: |
           echo "⌛ Downloading Xanmod Patches..."
           git clone --depth=1 https://gitlab.com/xanmod/linux-patches.git linux-xanmod-patches
           echo "✅ Downloaded Xanmod Patches"
+      # - name: Checkout ECHO-CPU-Scheduler
+      #   uses: actions/checkout@v4
+      #   with:
+      #     repository: hamadmarri/ECHO-CPU-Scheduler
+      #     path: echo-patches
       - name: Checkout Bore-Scheduler Patches
-        run: |
-          echo "⌛ Downloading Bore-Scheduler Patches..."
-          git clone --depth=1 https://github.com/firelzrd/bore-scheduler.git bore-patches
-          echo "✅ Downloaded Bore-Scheduler Patches"
+        uses: actions/checkout@v4
+        with:
+          repository: firelzrd/bore-scheduler
+          path: bore-patches
       - name: Organize Patches
         run: |
           echo "⌛ Organizing Patches..."
           cd linux
           cp -R ../linux-debian/debian/patches ./patches
-        
           echo "⭕ Copied Debian Patches"
           cp -R ../linux-xanmod-patches/linux-${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }}.y-xanmod/net ./patches/net
           echo "⭕ Copied Xanmod Net Patches"
@@ -99,14 +112,7 @@ jobs:
           # echo "⭕ Copied ECHO-CPU-Scheduler Patches"
           cp -R ../bore-patches/patches/stable/linux-${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }}-bore ./patches/cpu-scheduler
           echo "⭕ Copied Bore-Scheduler Patches"
-          
-          if [ -d "../kernel_patches/${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }}" ]; then
-            cp -R ../kernel_patches/${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }} ./patches/custom
-            echo "⭕ Copied Custom Patches from ${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }}"
-          else
-            cp -R ../kernel_patches/6.12 ./patches/custom
-            echo "⚠️ Custom Patches for ${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }} not found, using 6.12 patches as fallback"
-          fi
+          cp -R ../kernel_patches/${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }} ./patches/custom
           cd patches
           echo "# Net Patches from Xanmod" >> series
           find ./net -type f -name "*.patch" -printf "net/%P\n" | sort >> series
@@ -114,8 +120,6 @@ jobs:
           find ./cpu-scheduler -type f -name "*.patch" -printf "cpu-scheduler/%P\n" | sort >> series
           echo "# Custom Patches" >> series
           find ./custom -type f -name "*.patch" -printf "custom/%P\n" | sort >> series
-          sed -i '/android-/d' series
-          sed -i '/documentation-drop-sphinx-version-check/d' series
           echo "✅ All Patches Organized"
       - name: Apply Patches
         run: |
@@ -129,23 +133,12 @@ jobs:
           key: linux-${{ needs.prepare.outputs.kernel_major_version }}.${{ needs.prepare.outputs.kernel_minor_version }}-amd64
       - name: Configure Kernel Build
         run: |
-          set -e
           echo "⌛ Configuring Kernel Build..."
-          mkdir -p /workdir/upload
           cd linux
           cp ../configs/x86_64.config .config
           echo "⭕ Copied Pre-Configured .config from x86_64"
-
-          # Cloud Kernel Tailoring
-          echo "✂️ Apply Cloud Kernel Tailoring..."
-          sed -i 's/\r$//' ../configs/cloud_tailoring.sh
-          chmod +x ../configs/cloud_tailoring.sh
-          ../configs/cloud_tailoring.sh
-
           make CC="ccache gcc" HOSTCC="ccache gcc" olddefconfig
-          cp .config /workdir/upload/.config
           echo "✅ Final Kernel Build Configured for x86_64"
-          echo "FILE_DATE=Kernel_Debian_${{ needs.prepare.outputs.kernel_version }}_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
       - name: Build Kernel (Debian Package)
         env:
           KBUILD_BUILD_USER: "cloudpassenger"
@@ -155,22 +148,19 @@ jobs:
         run: |
           echo "⌛ Start Building Kernel (Debian Package) for x86_64..."
           cd linux
-          export KDEB_PKGVERSION=$(make kernelrelease)-$(date +%Y%m%d%H%M)
-          echo "🏷️ Setting KDEB_PKGVERSION to $KDEB_PKGVERSION"
           make -j $(nproc) CC="ccache gcc" HOSTCC="ccache gcc" bindeb-pkg
           echo "✅ Kernel (Debian Package) Built Successfully"
-          echo "🧹 Cleaning up dbg packages..."
-          rm -f ../*-dbg_*.deb
+          cp .config ../linux-${{ needs.prepare.outputs.kernel_version }}-amd64.config
           echo "✅ Copied Kernel Config"
-          mkdir -p /workdir/upload
-          cp ../*.deb /workdir/upload/
-          cp ../*.changes /workdir/upload/
-          cp ../*.buildinfo /workdir/upload/
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: kernel-x86_64
-          path: /workdir/upload/*
+          path: |
+            *.deb
+            *.changes
+            *.buildinfo
+            *.config
       - name: Get build time
         id: get_build_time
         run: |
@@ -179,70 +169,62 @@ jobs:
           echo "BUILD_TIME=$BUILD_TIMESTAMP"
           echo "🏷️ Build Time: $BUILD_TIMESTAMP"
   
-      - name: Generate release tag
-        id: tag
+  create-release:
+    name: Create Release
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download Artifacts for x86_64
+        uses: actions/download-artifact@v4
+        with:
+          name: kernel-x86_64
+          path: ./
+      - name: Remove Debug Package in Release
         run: |
-          kernel_ver="${{ needs.prepare.outputs.kernel_version }}"
-          echo "release_tag=Debian_Kernel_${kernel_ver}_bbr_$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_ENV
-          cat <<EOF > release.txt
-          Kernel Version: ${kernel_ver}
-          Build Time: $(date -Is)
-          Architecture: x86_64
-          EOF
-
-      - name: Upload Kernel to release
-        run: |
-          set -e
-          if [ -z "${RELEASE_TOKEN}" ]; then
-            echo "RELEASE_TOKEN is required"
-            exit 1
-          fi
-
-          repo_name="${GITHUB_REPOSITORY:-$GITEA_REPOSITORY}"
-          api_url="${GITHUB_API_URL:-${GITEA_SERVER_URL%/}/api/v1}"
-
-          if [ -z "$repo_name" ] || [ -z "$api_url" ]; then
-            echo "Repository environment is incomplete"
-            exit 1
-          fi
-
-          release_tag="${{ env.release_tag }}"
-          release_name="$release_tag"
-          release_body=$(cat release.txt)
-
-          create_payload=$(jq -n \
-            --arg tag_name "$release_tag" \
-            --arg name "$release_name" \
-            --arg body "$release_body" \
-            '{tag_name: $tag_name, name: $name, body: $body, draft: false, prerelease: false}')
-
-          release_response=$(curl -fsSL \
-            -H "Authorization: token ${RELEASE_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "$create_payload" \
-            "${api_url}/repos/${repo_name}/releases")
-
-          release_id=$(printf '%s' "$release_response" | jq -r '.id // empty')
-          upload_url=$(printf '%s' "$release_response" | jq -r '.upload_url // empty')
-
-          if [ -z "$release_id" ] || [ "$release_id" = "null" ]; then
-            echo "Unable to determine release id"
-            exit 1
-          fi
-
-          for file in /workdir/upload/*; do
-            file_name=$(basename "$file")
-            if printf '%s' "$upload_url" | grep -q '{?name,label}'; then
-              target_url=$(printf '%s' "$upload_url" | sed 's/{?name,label}//')"?name=${file_name}"
-            else
-              target_url="${api_url}/repos/${repo_name}/releases/${release_id}/assets?name=${file_name}"
-            fi
-            curl -fsSL \
-              -H "Authorization: token ${RELEASE_TOKEN}" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary @"$file" \
-              "$target_url"
-          done
+          rm -f linux-image-*-dbg_*.deb
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         env:
-          RELEASE_TOKEN: ${{ secrets.TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ needs.prepare.outputs.kernel_version }}
+          name: Debian Cloud Kernel ${{ needs.prepare.outputs.kernel_version }} with BBR3 (amd64)
+          body: |
+            🚀 **Kernel Version:** `${{ needs.prepare.outputs.kernel_version }}`
+
+            📅 **Build Time:** `${{ needs.build.outputs.build_time }}`
+
+            🛠️ **Build Information:**
+            - **Architecture:** `amd64`
+            - **Kernel Type:** `cloud`
+            - **Applied Patches:**
+              - `Debian Patches Collection` (from [kernel-team/linux](https://salsa.debian.org/kernel-team/linux/))
+              - `BBR V3` (from [xanmod/linux-patches](https://gitlab.com/xanmod/linux-patches))
+              - `BBRPlus` (modified from [UJX6N/bbrplus-6.x_stable](https://github.com/UJX6N/bbrplus-6.x_stable))
+              - `TCP Brutal` (from [apernet/tcp-brutal](https://github.com/apernet/tcp-brutal))
+              - `Bore-Scheduler` (from [firelzrd/bore-scheduler](https://github.com/firelzrd/bore-scheduler))
+              - ⚠️ Temporarily disabled `ECHO-CPU-Scheduler` (from [hamadmarri/ECHO-CPU-Scheduler](https://github.com/hamadmarri/ECHO-CPU-Scheduler))
+            
+            --------
+            
+            🚀 **内核版本:** `${{ needs.prepare.outputs.kernel_version }}`
+
+            📅 **构建时间:** `${{ needs.build.outputs.build_time }}`
+
+            🛠️ **构建信息:**
+            - **架构:** `amd64`
+            - **内核类型:** `cloud`
+            - **应用补丁:**
+              - `Debian 补丁集合` (来自 [kernel-team/linux](https://salsa.debian.org/kernel-team/linux/))
+              - `BBR V3` (来自 [xanmod/linux-patches](https://gitlab.com/xanmod/linux-patches))
+              - `BBRPlus` (修改自 [UJX6N/bbrplus-6.x_stable](https://github.com/UJX6N/bbrplus-6.x_stable))
+              - `TCP Brutal` (来自 [apernet/tcp-brutal](https://github.com/apernet/tcp-brutal))
+              - `Bore-Scheduler` (来自 [firelzrd/bore-scheduler](https://github.com/firelzrd/bore-scheduler))
+              - ⚠️ 暂时禁用 `ECHO-CPU-Scheduler` (来自 [hamadmarri/ECHO-CPU-Scheduler](https://github.com/hamadmarri/ECHO-CPU-Scheduler))
+          files: |
+            *.deb
+            *.changes
+            *.buildinfo
+            *.config
+        
 

@@ -53,6 +53,7 @@ echo "⭕ Applied settings from Bore-Scheduler"
 ./scripts/config --enable CONFIG_TCP_CONG_BBR
 ./scripts/config --enable CONFIG_TCP_CONG_BBR1
 ./scripts/config --enable CONFIG_TCP_CONG_BRUTAL
+./scripts/config --module CONFIG_TCP_CONG_TCPA
 ./scripts/config --enable CONFIG_DEFAULT_BBR
 ./scripts/config --set-val CONFIG_DEFAULT_TCP_CONG "bbr"
 # Netfilter
