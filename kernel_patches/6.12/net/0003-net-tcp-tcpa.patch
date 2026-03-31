@@ -63,7 +63,8 @@ index 000000000000..0992ec0b4d89
 +#include <linux/random.h>
 +#include <linux/win_minmax.h>
 +
-+#define TCPA_INIT_CWND 64
++#define TCPA_INIT_CWND 16
++#define TCPA_TCPCONN_INIT_CWND 64
 +
 +#define BW_SCALE 24
 +#define BW_UNIT (1 << BW_SCALE)
@@ -822,9 +823,8 @@ index 000000000000..0992ec0b4d89
 +	/* TCPA Custom Init Logic */
 +	sport = ntohs(inet->inet_sport);
 +	dport = ntohs(inet->inet_dport);
-+	if (sport == 80 || sport == 443 || dport == 80 || dport == 443) {
-+		tp->snd_cwnd = tcpa_init_cwnd;
-+	}
++	if (sport == 80 || sport == 443 || dport == 80 || dport == 443)
++		tp->snd_cwnd = TCPA_TCPCONN_INIT_CWND;
 +
 +	tcpa->has_seen_rtt = 0;
 +	tcpa_init_pacing_rate_from_rtt(sk);

@@ -70,8 +70,6 @@ jobs:
         wget -O kernel.tar.xz $kernel_file
         tar -Jxvf kernel.tar.xz -C /workdir && cd /workdir/linux-$kernel_ver
         echo "TCP send Speed"
-        sed -ri 's/^#define[[:space:]]+TCP_INIT_CWND[[:space:]]+10$/#define TCP_INIT_CWND 64/' include/net/tcp.h
-        grep -n '^#define[[:space:]]\+TCP_INIT_CWND[[:space:]]\+64$' include/net/tcp.h
         echo "action_echo=enabled" >> $GITHUB_ENV
         echo "CODE_STATUS=success" >> $GITHUB_ENV
 
